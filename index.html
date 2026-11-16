@@ -797,7 +797,7 @@
     // 读取 URL 查询参数（如 ?style=3&to=Alice）
     const urlParams = new URLSearchParams(window.location.search);
     let currentStyleId = STYLES[urlParams.get("style")] ? urlParams.get("style") : "1";
-    let customToText = urlParams.get("to") || "To My Dear Friend";
+    let customToText = urlParams.get("to") || "To My Dear 3012";
 
     // 初始化 DOM 控件状态
     const styleSelect = document.getElementById("styleSelect");
