@@ -1,0 +1,1036 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Merry Christmas - 3D Particle Tree</title>
+  <!-- 加载与 Moon-Flower-Bold 手写修长风格高度一致的 Google Font，同时提供本地字体回退 -->
+  <link rel="preconnect" href="https://fonts.googleapis.com" />
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+  <link href="https://fonts.googleapis.com/css2?family=Amatic+SC:wght@700&family=Caveat:wght@700&display=swap" rel="stylesheet" />
+  <style>
+    /* 如果同目录下放了 Moon-Flower-Bold-2.ttf，将优先加载原版字体 */
+    @font-face {
+      font-family: 'MoonFlowerCustom';
+      src: url('./Moon-Flower-Bold-2.ttf') format('truetype');
+      font-weight: bold;
+      font-style: normal;
+      font-display: swap;
+    }
+
+    * {
+      box-sizing: border-box;
+      margin: 0;
+      padding: 0;
+    }
+
+    html, body {
+      width: 100%;
+      height: 100%;
+      overflow: hidden;
+      background-color: #050505;
+      font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
+      user-select: none;
+      -webkit-user-select: none;
+    }
+
+    #canvas-container {
+      position: relative;
+      width: 100vw;
+      height: 100vh;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+    }
+
+    canvas {
+      display: block;
+      width: 100%;
+      height: 100%;
+    }
+
+    /* 极简悬浮控制面板（默认半透明，可一键隐藏以纯享画面） */
+    .controls-toggle {
+      position: fixed;
+      top: 16px;
+      right: 16px;
+      z-index: 300;
+      background: rgba(255, 255, 255, 0.1);
+      backdrop-filter: blur(8px);
+      -webkit-backdrop-filter: blur(8px);
+      border: 1px solid rgba(255, 255, 255, 0.18);
+      color: rgba(255, 255, 255, 0.85);
+      border-radius: 9999px;
+      padding: 8px 14px;
+      font-size: 13px;
+      cursor: pointer;
+      transition: all 0.25s ease;
+    }
+
+    .controls-toggle:hover {
+      background: rgba(255, 255, 255, 0.2);
+      color: #fff;
+    }
+
+    .control-panel {
+      position: fixed;
+      top: 58px;
+      right: 16px;
+      z-index: 300;
+      width: 260px;
+      background: rgba(15, 15, 20, 0.72);
+      backdrop-filter: blur(12px);
+      -webkit-backdrop-filter: blur(12px);
+      border: 1px solid rgba(255, 255, 255, 0.15);
+      border-radius: 16px;
+      padding: 16px;
+      color: #f3f4f6;
+      box-shadow: 0 12px 32px rgba(0, 0, 0, 0.45);
+      transition: opacity 0.25s ease, transform 0.25s ease;
+    }
+
+    .control-panel.hidden {
+      opacity: 0;
+      pointer-events: none;
+      transform: translateY(-8px);
+    }
+
+    .control-group {
+      margin-bottom: 12px;
+    }
+
+    .control-group:last-child {
+      margin-bottom: 0;
+    }
+
+    .control-label {
+      display: block;
+      font-size: 12px;
+      color: rgba(255, 255, 255, 0.7);
+      margin-bottom: 6px;
+    }
+
+    .control-select,
+    .control-input {
+      width: 100%;
+      background: rgba(255, 255, 255, 0.08);
+      border: 1px solid rgba(255, 255, 255, 0.18);
+      border-radius: 10px;
+      padding: 8px 10px;
+      color: #fff;
+      font-size: 13px;
+      outline: none;
+      transition: border-color 0.2s;
+    }
+
+    .control-select:focus,
+    .control-input:focus {
+      border-color: rgba(255, 215, 0, 0.7);
+    }
+
+    .control-select option {
+      background: #141418;
+      color: #fff;
+    }
+
+    .control-row {
+      display: flex;
+      gap: 8px;
+      margin-top: 10px;
+    }
+
+    .btn-action {
+      flex: 1;
+      background: rgba(255, 255, 255, 0.12);
+      border: 1px solid rgba(255, 255, 255, 0.18);
+      border-radius: 10px;
+      padding: 7px 10px;
+      color: #fff;
+      font-size: 12px;
+      cursor: pointer;
+      transition: background 0.2s;
+    }
+
+    .btn-action:hover {
+      background: rgba(255, 255, 255, 0.22);
+    }
+  </style>
+</head>
+<body>
+  <div id="canvas-container">
+    <canvas id="treeCanvas"></canvas>
+  </div>
+
+  <!-- 样式与祝福语微调面板（默认收起，保证开屏即纯净画面） -->
+  <button id="togglePanelBtn" class="controls-toggle" title="切换配色与文字">🎨 样式 / 祝福</button>
+  <div id="controlPanel" class="control-panel hidden">
+    <div class="control-group">
+      <label class="control-label" for="styleSelect">配色主题 (STYLES 1-13)</label>
+      <select id="styleSelect" class="control-select">
+        <option value="1">1. 经典绿色 (Classic Green)</option>
+        <option value="2">2. 彩色装饰 (Colorful Decor)</option>
+        <option value="3">3. 粉色浪漫 (Pink Romantic)</option>
+        <option value="4">4. 紫夜梦幻 (Purple Dream)</option>
+        <option value="5">5. 霓虹派对风 (Neon Party)</option>
+        <option value="6">6. 热带水果风 (Tropical Fruit)</option>
+        <option value="7">7. 糖果撞色风 (Candy Contrast)</option>
+        <option value="8">8. 日落火焰风 (Sunset Flame)</option>
+        <option value="9">9. 赛博朋克·霓虹渐变 (Cyberpunk)</option>
+        <option value="10">10. 莫兰迪撞色·低饱和 (Morandi)</option>
+        <option value="11">11. 日落盐湖·暖冷撞色 (Salt Lake)</option>
+        <option value="12">12. 复古画报·焦糖奶油 (Caramel)</option>
+        <option value="13">13. 极光森林·冷调幻彩 (Aurora)</option>
+      </select>
+    </div>
+
+    <div class="control-group">
+      <label class="control-label" for="toTextInput">底部祝福文字</label>
+      <input id="toTextInput" class="control-input" type="text" value="To My Dear 3012" maxlength="48" />
+    </div>
+
+    <div class="control-row">
+      <button id="pauseBtn" class="btn-action">⏸ 暂停旋转</button>
+      <button id="copyLinkBtn" class="btn-action">🔗 复制分享链接</button>
+    </div>
+  </div>
+
+  <script>
+    /**
+     * 1:1 复刻 Python Matplotlib 3D 粒子圣诞树
+     * ------------------------------------------------------------
+     * 包含：
+     * - 完整 13 套 STYLES 配色字典
+     * - 树干 (2500)、8层树叶 (8000+)、装饰球 (600)、螺旋丝带 (1200)、
+     *   顶部星光过渡 (50)、五角星及3层光晕、飘雪 (500)
+     * - 严格一致的 3D 旋转矩阵与透视投影 (camera_dist = 2.4)
+     * - 画家算法深度排序 (Painter's Algorithm) 与 Matplotlib scatter 点面积到像素半径的精确换算
+     */
+
+    const STYLES = {
+      "1": { // 经典绿色
+        bg_col: "#050505",
+        tree_cols: ["#0f3d0f", "#144514", "#006400", "#2E8B57", "#228B22"],
+        trunk_col: "#3e2723",
+        decor_cols: ["#FFD700", "#FF0000", "#FFFFFF", "#FFA500"],
+        star_col: "#FFD700",
+        text_col: "#FFD700",
+        text_merry: "#FF6347",
+        text_christmas: "#006400",
+        text_to: "#FFFF00",
+        ribbon_col: "#D4AF37",
+        snow_col: "white",
+        has_ribbon: true,
+        ribbon_width: 2.2
+      },
+      "2": { // 彩色装饰
+        bg_col: "#000000",
+        tree_cols: ["#006400", "#228B22"],
+        trunk_col: "#4E342E",
+        decor_cols: ["#FF0000", "#00FF00", "#0000FF", "#FFFF00"],
+        star_col: "#FFD700",
+        text_col: "#FF6347",
+        text_merry: "#FF6347",
+        text_christmas: "#006400",
+        text_to: "#FFFF00",
+        ribbon_col: "#C0C0C0",
+        snow_col: "white",
+        has_ribbon: true,
+        ribbon_width: 1.5
+      },
+      "3": { // 粉色浪漫
+        bg_col: "#120508",
+        tree_cols: ["#D87093", "#FF69B4", "#C71585"],
+        trunk_col: "#5D4037",
+        decor_cols: ["#FFFFFF", "#FFD700", "#FF1493"],
+        star_col: "#FFD700",
+        text_col: "#FFC0CB",
+        text_merry: "#C71585",
+        text_christmas: "#FF69B4",
+        text_to: "#FFFF00",
+        ribbon_col: "#FFFFFF",
+        snow_col: "#FFF0F5",
+        has_ribbon: true,
+        ribbon_width: 1.5
+      },
+      "4": { // 紫夜梦幻
+        bg_col: "#090512",
+        tree_cols: ["#3b2c4a", "#5a3f73", "#6d4c91"],
+        trunk_col: "#3E2723",
+        decor_cols: ["#E1BEE7", "#BA68C8", "#FFD700", "#FFFFFF"],
+        star_col: "#FFD700",
+        text_col: "#D1A6E0",
+        text_merry: "#BA68C8",
+        text_christmas: "#FFFFFF",
+        text_to: "#FFD700",
+        ribbon_col: "#9575CD",
+        snow_col: "#F3E5F5",
+        has_ribbon: true,
+        ribbon_width: 1.6
+      },
+      "5": { // 霓虹派对风
+        bg_col: "#0D0221",
+        tree_cols: ["#FF00FF", "#00FFFF", "#FF6B00"],
+        trunk_col: "#FFD700",
+        decor_cols: ["#FF0000", "#00FF00", "#FFFF00", "#0000FF"],
+        star_col: "#FFFFFF",
+        text_col: "#FF00FF",
+        text_merry: "#00FFFF",
+        text_christmas: "#FF6B00",
+        text_to: "#FFFFFF",
+        ribbon_col: "#FF00FF",
+        snow_col: "#E0FFFF",
+        has_ribbon: true,
+        ribbon_width: 2.0
+      },
+      "6": { // 热带水果风
+        bg_col: "#050505",
+        tree_cols: ["#00FF00", "#39FF14", "#7FFF00"],
+        trunk_col: "#8B4513",
+        decor_cols: ["#FF4500", "#FF6347", "#FFFF00", "#FF1493"],
+        star_col: "#FFA500",
+        text_col: "#FF6347",
+        text_merry: "#FF1493",
+        text_christmas: "#7FFF00",
+        text_to: "#FFFF00",
+        ribbon_col: "#FF4500",
+        snow_col: "#F0F8FF",
+        has_ribbon: true,
+        ribbon_width: 1.8
+      },
+      "7": { // 糖果撞色风
+        bg_col: "#000000",
+        tree_cols: ["#FF69B4", "#FFB6C1", "#C71585"],
+        trunk_col: "#DAA520",
+        decor_cols: ["#00FFFF", "#FFD700", "#FF0000", "#00FF00"],
+        star_col: "#FFFF00",
+        text_col: "#FFB6C1",
+        text_merry: "#00FFFF",
+        text_christmas: "#FF69B4",
+        text_to: "#FFD700",
+        ribbon_col: "#00FFFF",
+        snow_col: "#FFF0F5",
+        has_ribbon: true,
+        ribbon_width: 2.2
+      },
+      "8": { // 日落火焰风
+        bg_col: "#050505",
+        tree_cols: ["#FF4500", "#FF6347", "#FF8C00"],
+        trunk_col: "#2F4F4F",
+        decor_cols: ["#FFFF00", "#FFD700", "#FFFFFF", "#FFA500"],
+        star_col: "#FFFFFF",
+        text_col: "#FF6347",
+        text_merry: "#FFFF00",
+        text_christmas: "#FF4500",
+        text_to: "#FFD700",
+        ribbon_col: "#FFFF00",
+        snow_col: "#E6E6FA",
+        has_ribbon: true,
+        ribbon_width: 1.6
+      },
+      "9": { // 赛博朋克·霓虹渐变
+        bg_col: "#0A001F",
+        tree_cols: ["#00F0FF", "#7928CA", "#FF0080"],
+        trunk_col: "#FFD700",
+        decor_cols: ["#FFFF00", "#00FF9C", "#FF4080", "#00FFFF"],
+        star_col: "#FFFFFF",
+        text_merry: "#00F0FF",
+        text_christmas: "#FF0080",
+        text_to: "#FFFF00",
+        ribbon_col: "#7928CA",
+        snow_col: "#00F0FF33",
+        has_ribbon: true,
+        ribbon_width: 2.0
+      },
+      "10": { // 莫兰迪撞色·低饱和高级感
+        bg_col: "#050505",
+        tree_cols: ["#9F86C0", "#BE95C4", "#E0B1CB"],
+        trunk_col: "#7F5539",
+        decor_cols: ["#F2CD5C", "#F2994A", "#588B8B", "#C8C2BC"],
+        star_col: "#F2CD5C",
+        text_merry: "#F2994A",
+        text_christmas: "#9F86C0",
+        text_to: "#F2CD5C",
+        ribbon_col: "#FFF0F5",
+        snow_col: "#FFF0F5",
+        has_ribbon: true,
+        ribbon_width: 1.8
+      },
+      "11": { // 日落盐湖·暖冷撞色
+        bg_col: "#050505",
+        tree_cols: ["#FFC857", "#FF7A45", "#DB504A"],
+        trunk_col: "#3E2723",
+        decor_cols: ["#00A8E8", "#FDFCDC", "#FF9F1C", "#007EA7"],
+        star_col: "#FDFCDC",
+        text_merry: "#FF7A45",
+        text_christmas: "#00A8E8",
+        text_to: "#FFFF00",
+        ribbon_col: "#007EA7",
+        snow_col: "#FDFCDC44",
+        has_ribbon: true,
+        ribbon_width: 1.7
+      },
+      "12": { // 复古画报·焦糖奶油风
+        bg_col: "#050505",
+        tree_cols: ["#D8A777", "#E8C872", "#F1E9D2"],
+        trunk_col: "#8B4513",
+        decor_cols: ["#8B0000", "#CD853F", "#FFF8DC", "#5C4033"],
+        star_col: "#FFD700",
+        text_merry: "#8B0000",
+        text_christmas: "#D8A777",
+        text_to: "#FFF8DC",
+        ribbon_col: "#CD853F",
+        snow_col: "#F1E9D266",
+        has_ribbon: true,
+        ribbon_width: 2.1
+      },
+      "13": { // 极光森林·冷调幻彩
+        bg_col: "#050505",
+        tree_cols: ["#007F73", "#00A896", "#70AE98"],
+        trunk_col: "#2B2B2B",
+        decor_cols: ["#7400B8", "#6930C3", "#5E60CE", "#5390D9"],
+        star_col: "#80FFDB",
+        text_merry: "#7400B8",
+        text_christmas: "#5390D9",
+        text_to: "#00A896",
+        ribbon_col: "#5390D9",
+        snow_col: "#80FFDB33",
+        has_ribbon: true,
+        ribbon_width: 1.9
+      }
+    };
+
+    // 数学辅助函数，对齐 numpy
+    function uniform(min, max) {
+      return min + Math.random() * (max - min);
+    }
+
+    function randomChoice(arr) {
+      return arr[Math.floor(Math.random() * arr.length)];
+    }
+
+    function linspace(start, stop, num) {
+      const step = (stop - start) / (num - 1);
+      const arr = new Array(num);
+      for (let i = 0; i < num; i++) {
+        arr[i] = start + step * i;
+      }
+      return arr;
+    }
+
+    /**
+     * 解析颜色字符串（支持命名颜色、#RGB、#RRGGBB、#RRGGBBAA）并合成外部 alpha
+     * 对齐 matplotlib.colors.to_rgba 与 scatter(..., alpha=...) 的行为
+     */
+    const colorCache = new Map();
+    const offscreenCtx = document.createElement("canvas").getContext("2d");
+
+    function parseColorWithAlpha(colorStr, extraAlpha) {
+      const key = `${colorStr}_${extraAlpha}`;
+      if (colorCache.has(key)) return colorCache.get(key);
+
+      let r = 255, g = 255, b = 255, baseAlpha = 1.0;
+
+      if (colorStr.startsWith("#") && colorStr.length === 9) {
+        // #RRGGBBAA 格式（例如样式 9, 11, 12, 13 的 snow_col）
+        r = parseInt(colorStr.slice(1, 3), 16);
+        g = parseInt(colorStr.slice(3, 5), 16);
+        b = parseInt(colorStr.slice(5, 7), 16);
+        baseAlpha = parseInt(colorStr.slice(7, 9), 16) / 255;
+      } else {
+        offscreenCtx.fillStyle = "#000000";
+        offscreenCtx.fillStyle = colorStr;
+        const normalized = offscreenCtx.fillStyle;
+        if (normalized.startsWith("#")) {
+          r = parseInt(normalized.slice(1, 3), 16);
+          g = parseInt(normalized.slice(3, 5), 16);
+          b = parseInt(normalized.slice(5, 7), 16);
+        } else if (normalized.startsWith("rgba")) {
+          const parts = normalized.match(/[\d.]+/g);
+          r = Number(parts[0]);
+          g = Number(parts[1]);
+          b = Number(parts[2]);
+          baseAlpha = Number(parts[3]);
+        }
+      }
+
+      const finalAlpha = Math.max(0, Math.min(1, baseAlpha * extraAlpha));
+      const rgbaStr = `rgba(${r}, ${g}, ${b}, ${finalAlpha.toFixed(3)})`;
+      colorCache.set(key, rgbaStr);
+      return rgbaStr;
+    }
+
+    /**
+     * 圣诞树 3D 粒子场景类（完全还原 Python ChristmasTree）
+     */
+    class ChristmasTree {
+      constructor(cfg) {
+        this.cfg = cfg;
+        this.particles = [];
+        this.snow = [];
+        this.buildScene();
+        this.initSnow();
+      }
+
+      buildScene() {
+        const data = [];
+        const nLayers = 8;
+        const layerGap = 0.04;
+        const TWO_PI = 2 * Math.PI;
+
+        // 1. 树干 (2500 个粒子)
+        const nTrunk = 2500;
+        for (let i = 0; i < nTrunk; i++) {
+          const h = uniform(-1.0, -0.25);
+          const r = uniform(0, 0.28);
+          const theta = uniform(0, TWO_PI);
+
+          data.push({
+            x: r * Math.cos(theta),
+            y: h,
+            z: r * Math.sin(theta),
+            color: parseColorWithAlpha(this.cfg.trunk_col, 1.0),
+            size: 18,
+            isStar: false
+          });
+        }
+
+        // 2. 树叶 (8 层，共约 8200 个粒子)
+        const totalLeaves = 8000;
+        const layerHeights = linspace(-0.8, 2.0, nLayers + 1);
+
+        for (let layerIdx = 0; layerIdx < nLayers; layerIdx++) {
+          const hMinRaw = layerHeights[layerIdx];
+          const hMaxRaw = layerHeights[layerIdx + 1];
+
+          let hMin, hMax;
+          if (layerIdx === nLayers - 1) {
+            hMin = hMinRaw + layerGap * 0.3;
+            const starTargetH = layerHeights[layerHeights.length - 1] + 0.3;
+            hMax = starTargetH - 0.02;
+          } else {
+            hMin = hMinRaw + layerGap;
+            hMax = hMaxRaw - layerGap;
+          }
+
+          const layerCenterH = (hMin + hMax) / 2.0;
+          const relHLayer = layerIdx / (nLayers - 1);
+
+          let layerType, maxLayerRadius, leavesInThisLayer;
+          if (layerIdx === nLayers - 1) {
+            layerType = "cone";
+            const layerBelowIdx = layerIdx - 1;
+            const relHBelow = layerBelowIdx / (nLayers - 1);
+            const maxRadiusBelow = 1.6 * (1.0 - relHBelow * 0.8);
+            const radiusAtTopBelow = maxRadiusBelow * 0.7;
+            maxLayerRadius = radiusAtTopBelow;
+            leavesInThisLayer = Math.floor((totalLeaves / nLayers) * 1.2);
+          } else {
+            layerType = "cylinder";
+            maxLayerRadius = 1.6 * (1.0 - relHLayer * 0.8);
+            leavesInThisLayer = Math.floor(totalLeaves / nLayers);
+          }
+
+          for (let j = 0; j < leavesInThisLayer; j++) {
+            const h = uniform(hMin, hMax);
+            const relHInLayer = (hMax - hMin) > 0 ? (h - hMin) / (hMax - hMin) : 0;
+
+            let baseR, r, particleColor;
+            if (layerType === "cone") {
+              baseR = maxLayerRadius * (1.0 - relHInLayer);
+              r = baseR * Math.sqrt(uniform(0.05, 1.0));
+              if (relHInLayer > 0.85) {
+                const blendFactor = (relHInLayer - 0.85) / 0.15;
+                if (Math.random() < blendFactor * 0.3) {
+                  particleColor = this.cfg.star_col;
+                } else {
+                  particleColor = randomChoice(this.cfg.tree_cols);
+                }
+              } else {
+                particleColor = randomChoice(this.cfg.tree_cols);
+              }
+            } else {
+              const distToCenter = (hMax - hMin) > 0
+                ? (Math.abs(h - layerCenterH) / (hMax - hMin)) * 2.0
+                : 0;
+              baseR = maxLayerRadius * (1.0 - Math.pow(distToCenter, 2) * 0.3);
+              r = baseR * Math.sqrt(uniform(0.1, 1.0));
+              particleColor = randomChoice(this.cfg.tree_cols);
+            }
+
+            const theta = uniform(0, TWO_PI);
+            data.push({
+              x: r * Math.cos(theta),
+              y: h,
+              z: r * Math.sin(theta),
+              color: parseColorWithAlpha(particleColor, 0.9),
+              size: uniform(5, 15),
+              isStar: false
+            });
+          }
+        }
+
+        // 3. 装饰球 (600 个，每层 75 个)
+        const totalDecor = 600;
+        const decorPerLayer = Math.floor(totalDecor / nLayers);
+
+        for (let layerIdx = 0; layerIdx < nLayers; layerIdx++) {
+          const hMinRaw = layerHeights[layerIdx];
+          const hMaxRaw = layerHeights[layerIdx + 1];
+
+          let hMin, hMax;
+          if (layerIdx === nLayers - 1) {
+            hMin = hMinRaw + layerGap * 0.3 + 0.01;
+            const starTargetH = layerHeights[layerHeights.length - 1] + 0.28;
+            hMax = starTargetH - 0.02 - 0.01;
+          } else {
+            hMin = hMinRaw + layerGap + 0.01;
+            hMax = hMaxRaw - layerGap - 0.01;
+          }
+
+          const layerCenterH = (hMin + hMax) / 2.0;
+          const relHLayer = layerIdx / (nLayers - 1);
+
+          let layerType, maxLayerRadius;
+          if (layerIdx === nLayers - 1) {
+            layerType = "cone";
+            const layerBelowIdx = layerIdx - 1;
+            const relHBelow = layerBelowIdx / (nLayers - 1);
+            const maxRadiusBelow = 1.6 * (1.0 - relHBelow * 0.8);
+            maxLayerRadius = maxRadiusBelow * 0.7;
+          } else {
+            layerType = "cylinder";
+            maxLayerRadius = 1.6 * (1.0 - relHLayer * 0.8);
+          }
+
+          for (let j = 0; j < decorPerLayer; j++) {
+            const h = uniform(hMin, hMax);
+            const relHInLayer = (hMax - hMin) > 0 ? (h - hMin) / (hMax - hMin) : 0;
+
+            let baseR;
+            if (layerType === "cone") {
+              baseR = maxLayerRadius * (1.0 - relHInLayer);
+            } else {
+              const distToCenter = (hMax - hMin) > 0
+                ? (Math.abs(h - layerCenterH) / (hMax - hMin)) * 2.0
+                : 0;
+              baseR = maxLayerRadius * (1.0 - Math.pow(distToCenter, 2) * 0.3);
+            }
+
+            const r = baseR * 0.98;
+            const theta = uniform(0, TWO_PI);
+
+            data.push({
+              x: r * Math.cos(theta),
+              y: h,
+              z: r * Math.sin(theta),
+              color: parseColorWithAlpha(randomChoice(this.cfg.decor_cols), 1.0),
+              size: uniform(22, 45),
+              isStar: false
+            });
+          }
+        }
+
+        // 4. 螺旋丝带 (1200 个粒子，每层 150 个)
+        if (this.cfg.has_ribbon) {
+          const totalRibbonPts = 1200;
+          const ptsPerLayer = Math.floor(totalRibbonPts / nLayers);
+
+          for (let layerIdx = 0; layerIdx < nLayers; layerIdx++) {
+            const hMinRaw = layerHeights[layerIdx];
+            const hMaxRaw = layerHeights[layerIdx + 1];
+
+            let hMin, hMax;
+            if (layerIdx === nLayers - 1) {
+              hMin = hMinRaw + layerGap * 0.3;
+              hMax = hMaxRaw - 0.01;
+            } else {
+              hMin = hMinRaw + layerGap;
+              hMax = hMaxRaw - layerGap;
+            }
+
+            const layerCenterH = (hMin + hMax) / 2.0;
+            const relHLayer = layerIdx / (nLayers - 1);
+
+            let layerType, maxLayerRadius;
+            if (layerIdx === nLayers - 1) {
+              layerType = "cone";
+              const layerBelowIdx = layerIdx - 1;
+              const relHBelow = layerBelowIdx / (nLayers - 1);
+              const maxRadiusBelow = 1.6 * (1.0 - relHBelow * 0.8);
+              maxLayerRadius = maxRadiusBelow * 0.7;
+            } else {
+              layerType = "cylinder";
+              maxLayerRadius = 1.6 * (1.0 - relHLayer * 0.8);
+            }
+
+            const hVals = linspace(hMax, hMin, ptsPerLayer);
+            const tBaseVals = linspace(0, 1.5 * Math.PI, ptsPerLayer);
+            const tOffset = layerIdx * Math.PI * 0.7;
+
+            for (let i = 0; i < ptsPerLayer; i++) {
+              const h = hVals[i];
+              const t = tBaseVals[i] + tOffset;
+              const relHInLayer = (hMax - hMin) > 0 ? (h - hMin) / (hMax - hMin) : 0;
+
+              let baseR;
+              if (layerType === "cone") {
+                baseR = maxLayerRadius * (1.0 - relHInLayer);
+              } else {
+                const distToCenter = (hMax - hMin) > 0
+                  ? (Math.abs(h - layerCenterH) / (hMax - hMin)) * 2.0
+                  : 0;
+                baseR = maxLayerRadius * (1.0 - Math.pow(distToCenter, 2) * 0.3);
+              }
+
+              const r = baseR + 0.08;
+              data.push({
+                x: r * Math.cos(t),
+                y: h,
+                z: r * Math.sin(t),
+                color: parseColorWithAlpha(this.cfg.ribbon_col, 0.6),
+                size: 8 * this.cfg.ribbon_width,
+                isStar: false
+              });
+            }
+          }
+        }
+
+        // 5. 顶星过渡粒子 (50 个)
+        const starH = layerHeights[layerHeights.length - 1] + 0.28;
+        const nTransition = 50;
+        const transMin = starH - 0.02;
+        const transMax = starH - 0.005;
+
+        for (let i = 0; i < nTransition; i++) {
+          const hTrans = uniform(transMin, transMax);
+          const relTrans = (hTrans - transMin) / (transMax - transMin);
+          const rTrans = 0.02 * (1.0 - relTrans) * Math.sqrt(uniform(0.1, 1.0));
+          const thetaTrans = uniform(0, TWO_PI);
+
+          const transColor = Math.random() < relTrans
+            ? this.cfg.star_col
+            : randomChoice(this.cfg.tree_cols);
+
+          data.push({
+            x: rTrans * Math.cos(thetaTrans),
+            y: hTrans,
+            z: rTrans * Math.sin(thetaTrans),
+            color: parseColorWithAlpha(transColor, 0.7 + relTrans * 0.3),
+            size: uniform(3, 8),
+            isStar: false
+          });
+        }
+
+        // 6. 顶星本体与 3 层光晕
+        data.push({
+          x: 0,
+          y: starH,
+          z: 0,
+          color: parseColorWithAlpha(this.cfg.star_col, 1.0),
+          size: 500,
+          isStar: true
+        });
+
+        const glowLayers = [
+          [800, 0.2],
+          [500, 0.3],
+          [300, 0.4]
+        ];
+        for (const [size, alpha] of glowLayers) {
+          data.push({
+            x: 0,
+            y: starH,
+            z: 0,
+            color: parseColorWithAlpha(this.cfg.star_col, alpha),
+            size: size,
+            isStar: false
+          });
+        }
+
+        this.particles = data;
+      }
+
+      initSnow() {
+        const nSnow = 500;
+        const data = [];
+        for (let i = 0; i < nSnow; i++) {
+          data.push({
+            x: uniform(-2.5, 2.5),
+            y: uniform(-1.0, 1.5),
+            z: uniform(-2.5, 2.5),
+            vy: uniform(0.02, 0.05),
+            color: parseColorWithAlpha(this.cfg.snow_col, uniform(0.4, 0.8)),
+            size: uniform(4, 9)
+          });
+        }
+        this.snow = data;
+      }
+    }
+
+    /**
+     * 绘制标准五角星（对齐 Matplotlib marker='*'）
+     */
+    function drawStar(ctx, cx, cy, outerRadius, fillStyle) {
+      const spikes = 5;
+      const innerRadius = outerRadius * 0.382; // 黄金分割内径比，还原经典五角星
+      let rot = (Math.PI / 2) * 3;
+      const step = Math.PI / spikes;
+
+      ctx.beginPath();
+      ctx.moveTo(cx, cy - outerRadius);
+      for (let i = 0; i < spikes; i++) {
+        let x = cx + Math.cos(rot) * outerRadius;
+        let y = cy + Math.sin(rot) * outerRadius;
+        ctx.lineTo(x, y);
+        rot += step;
+
+        x = cx + Math.cos(rot) * innerRadius;
+        y = cy + Math.sin(rot) * innerRadius;
+        ctx.lineTo(x, y);
+        rot += step;
+      }
+      ctx.closePath();
+      ctx.fillStyle = fillStyle;
+      ctx.fill();
+    }
+
+    // 读取 URL 查询参数（如 ?style=3&to=Alice）
+    const urlParams = new URLSearchParams(window.location.search);
+    let currentStyleId = STYLES[urlParams.get("style")] ? urlParams.get("style") : "1";
+    let customToText = urlParams.get("to") || "To My Dear Friend";
+
+    // 初始化 DOM 控件状态
+    const styleSelect = document.getElementById("styleSelect");
+    const toTextInput = document.getElementById("toTextInput");
+    const togglePanelBtn = document.getElementById("togglePanelBtn");
+    const controlPanel = document.getElementById("controlPanel");
+    const pauseBtn = document.getElementById("pauseBtn");
+    const copyLinkBtn = document.getElementById("copyLinkBtn");
+
+    styleSelect.value = currentStyleId;
+    toTextInput.value = customToText;
+
+    let tree = new ChristmasTree(STYLES[currentStyleId]);
+    let isPaused = false;
+    let frame = 0;
+
+    // 交互事件绑定
+    togglePanelBtn.addEventListener("click", () => {
+      controlPanel.classList.toggle("hidden");
+    });
+
+    styleSelect.addEventListener("change", (e) => {
+      currentStyleId = e.target.value;
+      tree = new ChristmasTree(STYLES[currentStyleId]);
+      document.body.style.backgroundColor = STYLES[currentStyleId].bg_col;
+    });
+
+    toTextInput.addEventListener("input", (e) => {
+      customToText = e.target.value;
+    });
+
+    pauseBtn.addEventListener("click", () => {
+      isPaused = !isPaused;
+      pauseBtn.textContent = isPaused ? "▶ 继续旋转" : "⏸ 暂停旋转";
+    });
+
+    copyLinkBtn.addEventListener("click", () => {
+      const shareUrl = new URL(window.location.href);
+      shareUrl.searchParams.set("style", currentStyleId);
+      shareUrl.searchParams.set("to", customToText);
+
+      const tempInput = document.createElement("input");
+      tempInput.value = shareUrl.toString();
+      document.body.appendChild(tempInput);
+      tempInput.select();
+      document.execCommand("copy");
+      document.body.removeChild(tempInput);
+
+      const origText = copyLinkBtn.textContent;
+      copyLinkBtn.textContent = "✓ 已复制";
+      setTimeout(() => {
+        copyLinkBtn.textContent = origText;
+      }, 1500);
+    });
+
+    // Canvas 高清自适应初始化
+    const canvas = document.getElementById("treeCanvas");
+    const ctx = canvas.getContext("2d");
+
+    function resizeCanvas() {
+      const dpr = Math.min(window.devicePixelRatio || 1, 2);
+      canvas.width = window.innerWidth * dpr;
+      canvas.height = window.innerHeight * dpr;
+      ctx.setTransform(dpr, 0, 0, dpr, 0, 0);
+    }
+
+    window.addEventListener("resize", resizeCanvas);
+    resizeCanvas();
+
+    // 复用投影缓存数组以保证 60fps 零 GC 抖动
+    const renderList = [];
+
+    /**
+     * 单帧渲染（1:1 复刻 Python update(frame)）
+     */
+    function renderFrame() {
+      const width = window.innerWidth;
+      const height = window.innerHeight;
+      const cfg = tree.cfg;
+
+      // 背景填充
+      ctx.fillStyle = cfg.bg_col;
+      ctx.fillRect(0, 0, width, height);
+
+      // 坐标映射：完全对齐 Matplotlib xlim(-1.6, 1.6), ylim(-1.2, 2.0) (跨度均为 3.2)
+      // 在任意屏幕比例下保持 1:1 正方形虚拟视口居中，绝不变形
+      const viewSize = Math.min(width, height);
+      const scale = viewSize / 3.2; // 1 单位世界坐标对应的 CSS 像素
+      const offsetX = width / 2;
+      const offsetY = height / 2;
+
+      // 世界坐标 -> 屏幕像素坐标转换器
+      // worldX in [-1.6, 1.6] -> center 0
+      // worldY in [-1.2, 2.0] -> center 0.4, Y轴向上为正
+      const toScreenX = (wx) => offsetX + wx * scale;
+      const toScreenY = (wy) => offsetY - (wy - 0.4) * scale;
+
+      // Matplotlib scatter 中 s 为面积 (points^2)，
+      // Python 代码中 sizes = P[:, 7] * depth_factor * 1000 * 0.002 = P[:, 7] * depth_factor * 2.0
+      // 视觉半径 r_px = sqrt(s / pi) * (viewSize / 720)
+      const sizeScaleFactor = (viewSize / 720) * 1.15;
+
+      const cameraDist = 2.4;
+      const angle = frame * 0.08;
+      const cosA = Math.cos(angle);
+      const sinA = Math.sin(angle);
+
+      renderList.length = 0;
+      const starList = [];
+
+      // 1. 投影圣诞树所有粒子
+      const particles = tree.particles;
+      for (let i = 0; i < particles.length; i++) {
+        const p = particles[i];
+        const xRot = p.x * cosA - p.z * sinA;
+        const zRot = p.x * sinA + p.z * cosA;
+        const depthFactor = 1.0 / (cameraDist - zRot);
+
+        if (depthFactor <= 0) continue;
+
+        const x2d = xRot * depthFactor;
+        const y2d = p.y * depthFactor;
+        const sArea = p.size * depthFactor * 2.0; // 1000 * 0.002 = 2.0
+        const radius = Math.sqrt(sArea / Math.PI) * sizeScaleFactor;
+
+        const item = {
+          sx: toScreenX(x2d),
+          sy: toScreenY(y2d),
+          z: zRot,
+          color: p.color,
+          radius: radius
+        };
+
+        if (p.isStar) {
+          starList.push(item);
+        } else {
+          renderList.push(item);
+        }
+      }
+
+      // 2. 更新并投影雪花粒子
+      const snow = tree.snow;
+      for (let i = 0; i < snow.length; i++) {
+        const s = snow[i];
+        if (!isPaused) {
+          s.y -= s.vy;
+          if (s.y < -1.2) {
+            s.y = 1.6;
+          }
+        }
+
+        const sxRot = s.x * cosA - s.z * sinA;
+        const szRot = s.x * sinA + s.z * cosA;
+        const sDepth = 1.0 / (cameraDist - szRot);
+
+        if (sDepth > 0) {
+          const sArea = s.size * sDepth * 2.0;
+          const radius = Math.sqrt(sArea / Math.PI) * sizeScaleFactor;
+          renderList.push({
+            sx: toScreenX(sxRot * sDepth),
+            sy: toScreenY(s.y * sDepth),
+            z: szRot,
+            color: s.color,
+            radius: radius
+          });
+        }
+      }
+
+      // 3. 画家算法深度排序（z 从小到大，由远及近绘制）
+      renderList.sort((a, b) => a.z - b.z);
+
+      // 4. 绘制普通圆形粒子（zorder = 1）
+      const TWO_PI = Math.PI * 2;
+      for (let i = 0; i < renderList.length; i++) {
+        const pt = renderList[i];
+        if (pt.radius <= 0.1) continue;
+        ctx.beginPath();
+        ctx.arc(pt.sx, pt.sy, pt.radius, 0, TWO_PI);
+        ctx.fillStyle = pt.color;
+        ctx.fill();
+      }
+
+      // 5. 绘制顶星五角星（zorder = 100）
+      for (let i = 0; i < starList.length; i++) {
+        const st = starList[i];
+        // Matplotlib 的 '*' 标记外接圆半径略大于同面积圆形，乘以 1.45 视觉等效
+        drawStar(ctx, st.sx, st.sy, st.radius * 1.45, st.color);
+      }
+
+      // 6. 绘制前景文字（zorder = 200，精确对齐 world 坐标）
+      // text_y_main = 1.3, text_y_to = 1.1
+      // Merry at x = -0.3, Christmas at x = 0.25, To at x = 0
+      const mainFontSize = Math.round(viewSize * 0.072);
+      const subFontSize = Math.round(viewSize * 0.034);
+      const fontFamily = "'MoonFlowerCustom', 'Amatic SC', 'Caveat', cursive, serif";
+
+      ctx.textAlign = "center";
+      ctx.textBaseline = "alphabetic";
+
+      // "Merry"
+      ctx.font = `700 ${mainFontSize}px ${fontFamily}`;
+      ctx.fillStyle = cfg.text_merry;
+      ctx.fillText("Merry", toScreenX(-0.3), toScreenY(1.3));
+
+      // "Christmas"
+      ctx.fillStyle = cfg.text_christmas;
+      ctx.fillText("Christmas", toScreenX(0.25), toScreenY(1.3));
+
+      // "To My Dear Friend"
+      ctx.font = `700 ${subFontSize}px ${fontFamily}`;
+      ctx.fillStyle = cfg.text_to;
+      ctx.fillText(customToText, toScreenX(0), toScreenY(1.1));
+    }
+
+    // 动画循环：保持与原脚本 interval=30ms (~33fps) 一致的旋转角速度与飘雪节奏
+    let lastTick = 0;
+    const FRAME_INTERVAL = 1000 / 30; // ~33.3ms 步进，保证旋转速度和下落速度与原版完全一致
+
+    function animate(timestamp) {
+      requestAnimationFrame(animate);
+      if (timestamp - lastTick >= FRAME_INTERVAL) {
+        lastTick = timestamp;
+        renderFrame();
+        if (!isPaused) {
+          frame += 1;
+        }
+      }
+    }
+
+    // 首次绘制并启动循环
+    document.body.style.backgroundColor = STYLES[currentStyleId].bg_col;
+    renderFrame();
+    requestAnimationFrame(animate);
+  </script>
+</body>
+</html>
